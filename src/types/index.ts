@@ -1,10 +1,12 @@
 import { Request } from "express";
 
+export type UserRole = "ADMIN" | "USER";
+
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
-    role: string;
+    role: UserRole;
   };
 }
 

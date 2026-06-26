@@ -1,9 +1,10 @@
 import jwt from "jsonwebtoken";
+import { UserRole } from "../types";
 
 export interface JwtPayload {
   id: string;
   email: string;
-  role: string;
+  role: UserRole;
 }
 
 const secret = (): string => {
