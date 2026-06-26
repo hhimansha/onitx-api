@@ -1,6 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { UserRole } from "../types";
-import { CreateTaskInput, UpdateTaskInput } from "../validators/task.validator";
+import { CreateTaskInput, TaskQuery, UpdateTaskInput } from "../validators/task.validator";
 import prisma from "../utils/prisma";
 
 const TASK_SELECT = {
@@ -37,8 +38,22 @@ const assertAccess = (
   }
 };
 
-export const getTasks = async (userId: string, role: UserRole) => {
-  const where = role === "ADMIN" ? {} : ownerFilter(userId);
+export const getTasks = async (
+  userId: string,
+  role: UserRole,
+  filters: TaskQuery = {}
+) => {
+  const { q, status, priority } = filters;
+
+  const AND: Prisma.TaskWhereInput[] = [];
+
+  if (role !== "ADMIN") AND.push(ownerFilter(userId));
+  if (status) AND.push({ status });
+  if (priority) AND.push({ priority });
+  if (q) AND.push({ OR: [{ title: { contains: q } }, { description: { contains: q } }] });
+
+  const where: Prisma.TaskWhereInput = AND.length ? { AND } : {};
+
   return prisma.task.findMany({ where, select: TASK_SELECT, orderBy: { createdAt: "desc" } });
 };
 

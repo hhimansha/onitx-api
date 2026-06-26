@@ -2,7 +2,7 @@ import { NextFunction, Response } from "express";
 import { ZodError } from "zod";
 import { AuthenticatedRequest } from "../types";
 import { AppError } from "../middleware/errorHandler";
-import { createTaskSchema, updateTaskSchema } from "../validators/task.validator";
+import { createTaskSchema, taskQuerySchema, updateTaskSchema } from "../validators/task.validator";
 import * as taskService from "../services/task.service";
 import { sendSuccess } from "../utils/response";
 
@@ -20,10 +20,15 @@ export const getTasks = async (
 ): Promise<void> => {
   try {
     const { id, role } = user(req);
-    const tasks = await taskService.getTasks(id, role);
+    const filters = taskQuerySchema.parse(req.query);
+    const tasks = await taskService.getTasks(id, role, filters);
     sendSuccess(res, "Tasks retrieved", tasks);
   } catch (err) {
-    next(err);
+    if (err instanceof ZodError) {
+      next(new AppError(err.errors[0].message, 422));
+    } else {
+      next(err);
+    }
   }
 };
 
