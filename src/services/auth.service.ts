@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import { AppError } from "../middleware/errorHandler";
 import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from "../validators/auth.validator";
 import { signToken } from "../utils/jwt";
-import { sendPasswordResetEmail } from "../utils/email";
+import { sendEmail } from "../utils/email";
 import prisma from "../utils/prisma";
 
 const USER_SELECT = {
@@ -54,7 +54,30 @@ export const forgotPassword = async ({ email }: ForgotPasswordInput): Promise<vo
     data: { resetToken: token, resetTokenExpiry: expiry },
   });
 
-  await sendPasswordResetEmail(user.email, token);
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+
+  await sendEmail({
+    to: user.email,
+    subject: "Reset your OnitX password",
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;color:#1f2937">
+        <h2 style="margin-bottom:8px">Reset your password</h2>
+        <p>Hello ${user.name},</p>
+        <p>We received a request to reset your password.</p>
+        <p>Click the button below to continue:</p>
+        <p>
+          <a href="${resetUrl}"
+             style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">
+            Reset Password
+          </a>
+        </p>
+        <p style="color:#6b7280;font-size:14px">This link expires in <strong>30 minutes</strong>.</p>
+        <p style="color:#6b7280;font-size:14px">If you did not request this, please ignore this email.</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
+        <p style="color:#9ca3af;font-size:12px">— OnitX Team</p>
+      </div>
+    `,
+  });
 };
 
 export const resetPassword = async ({ token, password }: ResetPasswordInput): Promise<void> => {
