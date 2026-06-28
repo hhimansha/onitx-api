@@ -1,7 +1,9 @@
+import crypto from "crypto";
 import bcrypt from "bcrypt";
 import { AppError } from "../middleware/errorHandler";
-import { LoginInput, RegisterInput } from "../validators/auth.validator";
+import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from "../validators/auth.validator";
 import { signToken } from "../utils/jwt";
+import { sendPasswordResetEmail } from "../utils/email";
 import prisma from "../utils/prisma";
 
 const USER_SELECT = {
@@ -34,8 +36,43 @@ export const login = async (data: LoginInput) => {
   }
 
   const token = signToken({ id: user.id, email: user.email, role: user.role });
-  const { password: _pw, ...safeUser } = user;
+  const { password: _pw, resetToken: _rt, resetTokenExpiry: _re, ...safeUser } = user;
   return { token, user: safeUser };
+};
+
+export const forgotPassword = async ({ email }: ForgotPasswordInput): Promise<void> => {
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  // Return silently whether or not the email exists — prevents enumeration
+  if (!user) return;
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { resetToken: token, resetTokenExpiry: expiry },
+  });
+
+  await sendPasswordResetEmail(user.email, token);
+};
+
+export const resetPassword = async ({ token, password }: ResetPasswordInput): Promise<void> => {
+  const user = await prisma.user.findFirst({
+    where: {
+      resetToken: token,
+      resetTokenExpiry: { gt: new Date() },
+    },
+  });
+
+  if (!user) throw new AppError("Invalid or expired reset token", 400);
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashed, resetToken: null, resetTokenExpiry: null },
+  });
 };
 
 export const getById = async (id: string) => {
