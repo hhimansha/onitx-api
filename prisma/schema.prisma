@@ -32,7 +32,7 @@ model User {
   password            String?
   role                Role      @default(USER)
   designation         String?
-  profileImage        String?
+  profileImage        String?   @db.Text
   googleId            String?   @unique
   resetPasswordToken  String?
   resetPasswordExpiry DateTime?
