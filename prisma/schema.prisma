@@ -26,16 +26,22 @@ enum TaskStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String    @id @default(uuid())
+  name                String
+  email               String    @unique
+  password            String?
+  role                Role      @default(USER)
+  designation         String?
+  profileImage        String?
+  googleId            String?   @unique
+  resetPasswordToken  String?
+  resetPasswordExpiry DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  createdTasks  Task[] @relation("CreatedBy")
-  assignedTasks Task[] @relation("AssignedTo")
+  createdTasks Task[]           @relation("CreatedBy")
+  assignments  TaskAssignment[]
+  comments     Comment[]
 
   @@map("users")
 }
@@ -49,13 +55,36 @@ model Task {
   dueDate     DateTime?
 
   createdById String
-  assignedToId String?
+  createdBy   User  @relation("CreatedBy", fields: [createdById], references: [id])
 
-  createdBy  User  @relation("CreatedBy", fields: [createdById], references: [id])
-  assignedTo User? @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignments TaskAssignment[]
+  comments    Comment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("tasks")
+}
+
+model TaskAssignment {
+  taskId String
+  userId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@map("task_assignments")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  taskId    String
+  userId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
 }

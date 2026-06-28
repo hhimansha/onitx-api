@@ -12,19 +12,32 @@ const TASK_SELECT = {
   status: true,
   dueDate: true,
   createdById: true,
-  assignedToId: true,
   createdAt: true,
   updatedAt: true,
-  createdBy: { select: { id: true, name: true, email: true } },
-  assignedTo: { select: { id: true, name: true, email: true } },
+  createdBy: { select: { id: true, name: true, email: true, profileImage: true } },
+  assignments: {
+    select: {
+      user: {
+        select: { id: true, name: true, email: true, designation: true, profileImage: true },
+      },
+    },
+  },
+} as const;
+
+const ACCESS_CHECK = {
+  createdById: true,
+  assignments: { select: { userId: true } },
 } as const;
 
 const ownerFilter = (userId: string) => ({
-  OR: [{ createdById: userId }, { assignedToId: userId }],
+  OR: [
+    { createdById: userId },
+    { assignments: { some: { userId } } },
+  ],
 });
 
 const assertAccess = (
-  task: { createdById: string; assignedToId: string | null } | null,
+  task: { createdById: string; assignments: { userId: string }[] } | null,
   userId: string,
   role: UserRole
 ) => {
@@ -32,10 +45,16 @@ const assertAccess = (
   if (
     role !== "ADMIN" &&
     task.createdById !== userId &&
-    task.assignedToId !== userId
+    !task.assignments.some((a) => a.userId === userId)
   ) {
     throw new AppError("Forbidden", 403);
   }
+};
+
+const validateAssignees = async (ids: string[]) => {
+  if (!ids.length) return;
+  const count = await prisma.user.count({ where: { id: { in: ids }, role: "USER" } });
+  if (count !== ids.length) throw new AppError("One or more assigned users not found", 404);
 };
 
 export const getTasks = async (
@@ -44,7 +63,6 @@ export const getTasks = async (
   filters: TaskQuery = {}
 ) => {
   const { q, status, priority } = filters;
-
   const AND: Prisma.TaskWhereInput[] = [];
 
   if (role !== "ADMIN") AND.push(ownerFilter(userId));
@@ -53,24 +71,31 @@ export const getTasks = async (
   if (q) AND.push({ OR: [{ title: { contains: q } }, { description: { contains: q } }] });
 
   const where: Prisma.TaskWhereInput = AND.length ? { AND } : {};
-
   return prisma.task.findMany({ where, select: TASK_SELECT, orderBy: { createdAt: "desc" } });
 };
 
 export const getTaskById = async (id: string, userId: string, role: UserRole) => {
   const task = await prisma.task.findUnique({ where: { id }, select: TASK_SELECT });
-  assertAccess(task, userId, role);
+  assertAccess(
+    task
+      ? { createdById: task.createdById, assignments: task.assignments.map((a) => ({ userId: a.user.id })) }
+      : null,
+    userId,
+    role
+  );
   return task;
 };
 
 export const createTask = async (data: CreateTaskInput, userId: string) => {
-  if (data.assignedToId) {
-    const assignee = await prisma.user.findUnique({ where: { id: data.assignedToId } });
-    if (!assignee) throw new AppError("Assigned user not found", 404);
-  }
+  const { assignedToIds = [], ...taskData } = data;
+  await validateAssignees(assignedToIds);
 
   return prisma.task.create({
-    data: { ...data, createdById: userId },
+    data: {
+      ...taskData,
+      createdById: userId,
+      assignments: { create: assignedToIds.map((uid) => ({ userId: uid })) },
+    },
     select: TASK_SELECT,
   });
 };
@@ -81,25 +106,27 @@ export const updateTask = async (
   userId: string,
   role: UserRole
 ) => {
-  const existing = await prisma.task.findUnique({
-    where: { id },
-    select: { createdById: true, assignedToId: true },
-  });
+  const existing = await prisma.task.findUnique({ where: { id }, select: ACCESS_CHECK });
   assertAccess(existing, userId, role);
 
-  if (data.assignedToId) {
-    const assignee = await prisma.user.findUnique({ where: { id: data.assignedToId } });
-    if (!assignee) throw new AppError("Assigned user not found", 404);
-  }
+  const { assignedToIds, ...taskData } = data;
 
-  return prisma.task.update({ where: { id }, data, select: TASK_SELECT });
+  if (assignedToIds !== undefined) await validateAssignees(assignedToIds);
+
+  return prisma.task.update({
+    where: { id },
+    data: {
+      ...taskData,
+      ...(assignedToIds !== undefined
+        ? { assignments: { deleteMany: {}, create: assignedToIds.map((uid) => ({ userId: uid })) } }
+        : {}),
+    },
+    select: TASK_SELECT,
+  });
 };
 
 export const deleteTask = async (id: string, userId: string, role: UserRole) => {
-  const existing = await prisma.task.findUnique({
-    where: { id },
-    select: { createdById: true, assignedToId: true },
-  });
+  const existing = await prisma.task.findUnique({ where: { id }, select: ACCESS_CHECK });
   assertAccess(existing, userId, role);
   await prisma.task.delete({ where: { id } });
 };

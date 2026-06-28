@@ -9,7 +9,7 @@ export const createTaskSchema = z.object({
   priority: priority.optional(),
   status: status.optional(),
   dueDate: z.coerce.date().optional().nullable(),
-  assignedToId: z.string().uuid("Invalid user ID").optional().nullable(),
+  assignedToIds: z.array(z.string().uuid("Invalid user ID")).optional().default([]),
 });
 
 export const updateTaskSchema = createTaskSchema.partial();
