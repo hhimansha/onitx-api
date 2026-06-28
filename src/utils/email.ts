@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { AppError } from "../middleware/errorHandler";
 
 export const sendPasswordResetEmail = async (
   to: string,
@@ -7,8 +8,13 @@ export const sendPasswordResetEmail = async (
   const resend = new Resend(process.env.RESEND_API_KEY);
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
 
+  // RESEND_FROM_EMAIL must be a verified domain address in production.
+  // Falls back to Resend's shared test address for development (sends only
+  // to the email registered on your Resend account).
+  const from = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+
   const { error } = await resend.emails.send({
-    from: "OnitX <noreply@onitx.com>",
+    from: `OnitX <${from}>`,
     to,
     subject: "Reset your OnitX password",
     html: `
@@ -26,6 +32,6 @@ export const sendPasswordResetEmail = async (
 
   if (error) {
     console.error("[Email] Resend error:", error);
-    throw new Error("Failed to send reset email");
+    throw new AppError("Failed to send reset email. Please try again later.", 503);
   }
 };
