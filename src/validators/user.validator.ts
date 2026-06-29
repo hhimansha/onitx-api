@@ -7,4 +7,11 @@ export const updateProfileSchema = z.object({
   profileImage: z.string().optional().nullable(),
 });
 
+export const userListQuerySchema = z.object({
+  q: z.string().optional(),
+  sortBy: z.enum(["name", "email", "createdAt", "taskCount"]).optional().default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type UserListQuery = z.infer<typeof userListQuerySchema>;

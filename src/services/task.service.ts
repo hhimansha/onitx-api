@@ -62,12 +62,13 @@ export const getTasks = async (
   role: UserRole,
   filters: TaskQuery = {}
 ) => {
-  const { q, status, priority } = filters;
+  const { q, status, priority, assignedToId } = filters;
   const AND: Prisma.TaskWhereInput[] = [];
 
   if (role !== "ADMIN") AND.push(ownerFilter(userId));
   if (status) AND.push({ status });
   if (priority) AND.push({ priority });
+  if (assignedToId) AND.push({ assignments: { some: { userId: assignedToId } } });
   if (q) AND.push({ OR: [{ title: { contains: q } }, { description: { contains: q } }] });
 
   const where: Prisma.TaskWhereInput = AND.length ? { AND } : {};

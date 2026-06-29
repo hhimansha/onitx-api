@@ -18,6 +18,7 @@ export const taskQuerySchema = z.object({
   q: z.string().optional(),
   status: status.optional(),
   priority: priority.optional(),
+  assignedToId: z.string().uuid("Invalid user ID").optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
