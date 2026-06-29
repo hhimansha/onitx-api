@@ -69,8 +69,8 @@ npm run db:seed
 
 Default admin credentials:
 ```
-Email:    admin@onitx.com
-Password: Admin@123
+Email:    aadmin@onitx.com
+Password: admin123
 ```
 
 ### 5. Start the server
